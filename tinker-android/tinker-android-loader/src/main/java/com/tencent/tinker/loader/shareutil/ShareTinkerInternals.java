@@ -203,7 +203,8 @@ public class ShareTinkerInternals {
             return ShareConstants.ERROR_PACKAGE_CHECK_PATCH_TINKER_ID_NOT_FOUND;
         }
         if (!oldTinkerId.equals(patchTinkerId)) {
-            ShareTinkerLog.e(TAG, "tinkerId is not equal, base is " + oldTinkerId + ", but patch is " + patchTinkerId);
+            ShareTinkerLog.e(TAG, "tinkerId in patch is not matched with the one in base pack, base: %s, patch: %s.",
+                    oldTinkerId, patchTinkerId);
             return ShareConstants.ERROR_PACKAGE_CHECK_TINKER_ID_NOT_EQUAL;
         }
         return ShareConstants.ERROR_PACKAGE_CHECK_OK;
@@ -617,6 +618,15 @@ public class ShareTinkerInternals {
             ShareTinkerLog.e(TAG, "isVmJitInternal ex:" + e);
         }
         return false;
+    }
+
+    public static boolean isNewerOrEqualThanVersion(int apiLevel, boolean includePreviewVer) {
+        if (includePreviewVer && Build.VERSION.SDK_INT >= 23) {
+            return Build.VERSION.SDK_INT >= apiLevel
+                    || ((Build.VERSION.SDK_INT == apiLevel - 1) && Build.VERSION.PREVIEW_SDK_INT > 0);
+        } else {
+            return Build.VERSION.SDK_INT >= apiLevel;
+        }
     }
 
     public static String getExceptionCauseString(final Throwable ex) {

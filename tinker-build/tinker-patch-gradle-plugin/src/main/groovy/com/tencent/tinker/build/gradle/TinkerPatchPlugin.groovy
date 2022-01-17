@@ -197,11 +197,8 @@ class TinkerPatchPlugin implements Plugin<Project> {
                 boolean proguardEnable = variant.getBuildType().buildType.minifyEnabled
 
                 if (proguardEnable) {
-                    TinkerProguardConfigTask proguardConfigTask = mProject.tasks.create("tinkerProcess${capitalizedVariantName}Proguard", TinkerProguardConfigTask)
-                    proguardConfigTask.applicationVariant = variant
-                    proguardConfigTask.mustRunAfter tinkerManifestTask
                     def obfuscateTask = Compatibilities.getObfuscateTask(project, variant)
-                    obfuscateTask.dependsOn proguardConfigTask
+                    obfuscateTask.doFirst new TinkerProguardConfigAction(variant)
                 }
 
                 // Add this multidex proguard settings file to the list

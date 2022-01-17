@@ -19,17 +19,16 @@ package com.tencent.tinker.build.gradle.task
 import com.tencent.tinker.build.gradle.Compatibilities
 import com.tencent.tinker.build.gradle.TinkerBuildPath
 import com.tencent.tinker.build.util.FileOperation
-import org.gradle.api.DefaultTask
+import org.gradle.api.Action
 import org.gradle.api.GradleException
-import org.gradle.api.tasks.Internal
-import org.gradle.api.tasks.TaskAction
+import org.gradle.api.Task
 
 /**
  * The configuration properties.
  *
  * @author zhangshaowen
  */
-public class TinkerProguardConfigTask extends DefaultTask {
+class TinkerProguardConfigAction implements Action<Task> {
     static final String PROGUARD_CONFIG_SETTINGS =
             "-keepattributes *Annotation* \n" +
                     "-dontwarn com.tencent.tinker.anno.AnnotationProcessor \n" +
@@ -56,18 +55,18 @@ public class TinkerProguardConfigTask extends DefaultTask {
                     "    *;\n" +
                     "}\n"
 
-    @Internal
     def applicationVariant
 
-    @Internal
-    boolean shouldApplyMapping = true
-
-    public TinkerProguardConfigTask() {
-        group = 'tinker'
+    TinkerProguardConfigAction(variant) {
+        applicationVariant = variant
     }
 
-    @TaskAction
-    def updateTinkerProguardConfig() {
+    @Override
+    void execute(Task task) {
+        updateTinkerProguardConfig(task.getProject())
+    }
+
+    def updateTinkerProguardConfig(project) {
         def file = project.file(TinkerBuildPath.getProguardConfigPath(project))
         project.logger.error("try update tinker proguard file with ${file}")
 
@@ -80,7 +79,7 @@ public class TinkerProguardConfigTask extends DefaultTask {
         String applyMappingFile = project.extensions.tinkerPatch.buildConfig.applyMapping
 
         //write applymapping
-        if (shouldApplyMapping && FileOperation.isLegalFile(applyMappingFile)) {
+        if (FileOperation.isLegalFile(applyMappingFile)) {
             project.logger.error("try add applymapping ${applyMappingFile} to build the package")
             fr.write("-applymapping " + applyMappingFile)
             fr.write("\n")
@@ -103,42 +102,60 @@ public class TinkerProguardConfigTask extends DefaultTask {
         fr.close()
 
         // Add this proguard settings file to the list
-        injectTinkerProguardRuleFile(file)
+        injectTinkerProguardRuleFile(project, file)
     }
 
-    private void injectTinkerProguardRuleFile(file) {
+    private void injectTinkerProguardRuleFile(project, file) {
         def agpObfuscateTask = Compatibilities.getObfuscateTask(project, applicationVariant)
-        def agpConfigFiles = null
+        def configurationFilesOwner = null
+        def configurationFilesField = null
         try {
-            agpConfigFiles = agpObfuscateTask.configurationFiles
+            configurationFilesOwner = agpObfuscateTask
+            configurationFilesField = Compatibilities.getFieldRecursively(configurationFilesOwner.getClass(), '__configurationFiles__')
         } catch (Throwable ignored) {
-            agpConfigFiles = null
+            configurationFilesOwner = null
+            configurationFilesField = null
         }
-        if (agpConfigFiles == null) {
+        if (configurationFilesField == null) {
             try {
-                agpConfigFiles = agpObfuscateTask.transform.configurationFiles
+                configurationFilesOwner = agpObfuscateTask
+                configurationFilesField = Compatibilities.getFieldRecursively(configurationFilesOwner.getClass(), 'configurationFiles')
             } catch (Throwable ignored) {
-                agpConfigFiles = null
+                configurationFilesOwner = null
+                configurationFilesField = null
             }
         }
-        if (agpConfigFiles == null) {
+        if (configurationFilesField == null) {
             try {
-                agpConfigFiles = Compatibilities.getValueOfFieldRecursively(agpObfuscateTask, 'configurationFiles')
+                configurationFilesOwner = agpObfuscateTask.transform
+                configurationFilesField = Compatibilities.getFieldRecursively(configurationFilesOwner.getClass(), 'configurationFiles')
             } catch (Throwable ignored) {
-                agpConfigFiles = null
+                configurationFilesOwner = null
+                configurationFilesField = null
             }
         }
-        if (agpConfigFiles == null) {
+        def agpConfigurationFiles = null
+        boolean isOK = false
+        if (configurationFilesOwner != null && configurationFilesField != null) {
             try {
-                agpConfigFiles = Compatibilities.getValueOfFieldRecursively(agpObfuscateTask.transform, 'configurationFiles')
+                agpConfigurationFiles = configurationFilesField.get(configurationFilesOwner)
+                isOK = true
             } catch (Throwable ignored) {
-                agpConfigFiles = null
+                isOK = false
             }
         }
-        if (agpConfigFiles == null) {
+        if (isOK) {
+            def mergedConfigurationFiles = project.files(agpConfigurationFiles, project.files(file))
+            try {
+                configurationFilesField.set(configurationFilesOwner, mergedConfigurationFiles)
+                def mergedConfigurationFilesForConfirm = configurationFilesField.get(configurationFilesOwner)
+                println "Now proguard rule files are: ${mergedConfigurationFilesForConfirm.files}"
+            } catch (Throwable ignored) {
+                isOK = false
+            }
+        }
+        if (!isOK) {
             throw new GradleException('Fail to inject tinker proguard rules file. Some compatibility works need to be done.')
         }
-        agpConfigFiles.from(project.files(file))
-        println "Now proguard rule files are: ${agpConfigFiles.files}"
     }
 }
