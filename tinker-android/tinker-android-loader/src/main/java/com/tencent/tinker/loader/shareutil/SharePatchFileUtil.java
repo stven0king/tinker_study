@@ -183,8 +183,7 @@ public class SharePatchFileUtil {
              || "meizu".equalsIgnoreCase(Build.MANUFACTURER);
 
         final boolean isSpecialOSVer =
-                (Build.VERSION.SDK_INT >= 29)
-             || (Build.VERSION.SDK_INT >= 28 && Build.VERSION.PREVIEW_SDK_INT != 0)
+                ShareTinkerInternals.isNewerOrEqualThanVersion(29, true)
              || (ShareTinkerInternals.isArkHotRuning());
 
         final boolean isFileIllegal = !file.exists() || file.length() == 0;
@@ -242,7 +241,6 @@ public class SharePatchFileUtil {
             return false;
         }
         return deleteDir(new File(dir));
-
     }
 
     public static final boolean deleteDir(File file) {
@@ -261,6 +259,23 @@ public class SharePatchFileUtil {
             }
         }
         return true;
+    }
+
+    public static void deleteDirAsync(String path) {
+        deleteDirAsync(new File(path));
+    }
+
+    public static void deleteDirAsync(File file) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                SharePatchFileUtil.deleteDir(file);
+            }
+        }, "tinker-clean") {
+            {
+                setPriority(Thread.NORM_PRIORITY - 1);
+            }
+        }.start();
     }
 
 
