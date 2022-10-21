@@ -71,6 +71,7 @@ class TinkerResourcePatcher {
     private static Field assetsFiled = null;
     private static Field resourcesImplFiled = null;
     private static Field resDir = null;
+    private static Field resources = null;
     private static Field packagesFiled = null;
     private static Field resourcePackagesFiled = null;
     private static Field publicSourceDirField = null;
@@ -97,9 +98,18 @@ class TinkerResourcePatcher {
         }
 
         resDir = findField(loadedApkClass, "mResDir");
+        try {
+            resources = findField(loadedApkClass, "mResources");
+        } catch (Throwable thr) {
+            ShareTinkerLog.printErrStackTrace(TAG, thr, "Fail to get LoadedApk.mResources field.");
+            resources = null;
+        }
         packagesFiled = findField(activityThread, "mPackages");
-        if (Build.VERSION.SDK_INT < 27) {
+        try {
             resourcePackagesFiled = findField(activityThread, "mResourcePackages");
+        } catch (Throwable thr) {
+            ShareTinkerLog.printErrStackTrace(TAG, thr, "Fail to get mResourcePackages field.");
+            resourcePackagesFiled = null;
         }
 
         // Create a new AssetManager instance and point it to the resources
@@ -186,15 +196,12 @@ class TinkerResourcePatcher {
 
         final ApplicationInfo appInfo = context.getApplicationInfo();
 
-        final Field[] packagesFields;
-        if (Build.VERSION.SDK_INT < 27) {
-            packagesFields = new Field[]{packagesFiled, resourcePackagesFiled};
-        } else {
-            packagesFields = new Field[]{packagesFiled};
-        }
+        final Field[] packagesFields = new Field[]{packagesFiled, resourcePackagesFiled};
         for (Field field : packagesFields) {
+            if (field == null) {
+                continue;
+            }
             final Object value = field.get(currentActivityThread);
-
             for (Map.Entry<String, WeakReference<?>> entry
                     : ((Map<String, WeakReference<?>>) value).entrySet()) {
                 final Object loadedApk = entry.getValue().get();
@@ -204,6 +211,9 @@ class TinkerResourcePatcher {
                 final String resDirPath = (String) resDir.get(loadedApk);
                 if (appInfo.sourceDir.equals(resDirPath)) {
                     resDir.set(loadedApk, externalResourceFile);
+                    if (resources != null) {
+                        resources.set(loadedApk, null);
+                    }
                 }
             }
         }
