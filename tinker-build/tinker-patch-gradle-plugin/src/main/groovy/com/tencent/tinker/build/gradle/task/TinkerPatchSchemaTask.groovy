@@ -137,6 +137,8 @@ public class TinkerPatchSchemaTask extends DefaultTask {
                     .setOutBuilder(tmpDir.getAbsolutePath())
                     .setIgnoreWarning(configuration.ignoreWarning)
                     .setAllowLoaderInAnyDex(configuration.allowLoaderInAnyDex)
+                    .setCustomDiffPath(configuration.customPath)
+                    .setCustomDiffPathArgs(configuration.customDiffPathArgs)
                     .setRemoveLoaderForAllDex(configuration.removeLoaderForAllDex)
                     .setDexFilePattern(new ArrayList<String>(configuration.dex.pattern))
                     .setIsProtectedApp(configuration.buildConfig.isProtectedApp)

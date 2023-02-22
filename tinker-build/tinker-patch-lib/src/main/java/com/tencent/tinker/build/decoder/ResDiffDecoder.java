@@ -16,11 +16,12 @@
 
 package com.tencent.tinker.build.decoder;
 
-import com.tencent.tinker.bsdiff.BSDiff;
 import com.tencent.tinker.build.apkparser.AndroidParser;
 import com.tencent.tinker.build.info.InfoWriter;
 import com.tencent.tinker.build.patch.Configuration;
+import com.tencent.tinker.build.util.DiffFactory;
 import com.tencent.tinker.build.util.FileOperation;
+import com.tencent.tinker.build.util.CustomDiff;
 import com.tencent.tinker.build.util.Logger;
 import com.tencent.tinker.build.util.MD5;
 import com.tencent.tinker.build.util.TinkerPatchException;
@@ -223,7 +224,7 @@ public class ResDiffDecoder extends BaseDecoder {
             if (!outputFile.getParentFile().exists()) {
                 outputFile.getParentFile().mkdirs();
             }
-            BSDiff.bsdiff(oldFile, newFile, outputFile);
+            DiffFactory.diffFile(config, oldFile, newFile, outputFile);
             //treat it as normal modify
             if (Utils.checkBsDiffFileSize(outputFile, newFile)) {
                 LargeModeInfo largeModeInfo = new LargeModeInfo();
@@ -403,19 +404,7 @@ public class ResDiffDecoder extends BaseDecoder {
     private void checkIfSpecificResWasAnimRes(Collection<String> specificFileNames) {
         final Set<String> changedAnimResNames = new HashSet<>();
         for (String resFileName : specificFileNames) {
-            String resName = resFileName;
-            int lastPathSepPos = resFileName.lastIndexOf('/');
-            if (lastPathSepPos < 0) {
-                lastPathSepPos = resFileName.lastIndexOf('\\');
-            }
-            if (lastPathSepPos >= 0) {
-                resName = resName.substring(lastPathSepPos + 1);
-            }
-            final int firstDotPos = resName.indexOf('.');
-            if (firstDotPos >= 0) {
-                resName = resName.substring(0, firstDotPos);
-            }
-            if (newApkAnimResNames.contains(resName)) {
+            if (newApkAnimResNames.contains(resFileName)) {
                 if (Utils.isStringMatchesPatterns(resFileName, config.mResIgnoreChangeWarningPattern)) {
                     Logger.d("\nAnimation resource: " + resFileName
                             + " was changed, but it's filtered by ignoreChangeWarning pattern, just ignore.\n");
