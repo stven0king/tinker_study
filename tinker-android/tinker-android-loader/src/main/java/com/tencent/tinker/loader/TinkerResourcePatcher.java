@@ -98,8 +98,10 @@ class TinkerResourcePatcher {
 
         resDir = findField(loadedApkClass, "mResDir");
         packagesFiled = findField(activityThread, "mPackages");
-        if (Build.VERSION.SDK_INT < 27) {
+        try {
             resourcePackagesFiled = findField(activityThread, "mResourcePackages");
+        } catch (Throwable ignored) {
+            resourcePackagesFiled = null;
         }
 
         // Create a new AssetManager instance and point it to the resources
@@ -187,7 +189,7 @@ class TinkerResourcePatcher {
         final ApplicationInfo appInfo = context.getApplicationInfo();
 
         final Field[] packagesFields;
-        if (Build.VERSION.SDK_INT < 27) {
+        if (resourcePackagesFiled != null) {
             packagesFields = new Field[]{packagesFiled, resourcePackagesFiled};
         } else {
             packagesFields = new Field[]{packagesFiled};
@@ -280,6 +282,10 @@ class TinkerResourcePatcher {
 
         if (!checkResUpdate(context)) {
             throw new TinkerRuntimeException(ShareConstants.CHECK_RES_INSTALL_FAIL);
+        }
+
+        if (!AppInfoChangedBlocker.tryStart(context, externalResourceFile)) {
+            throw new IllegalStateException("Fail to inject AppInfoChangedBlocker.");
         }
 
         installResourceInsuranceHacks(context, externalResourceFile);

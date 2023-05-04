@@ -2,6 +2,7 @@ package com.tencent.tinker.loader;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
@@ -29,14 +30,14 @@ import java.lang.reflect.Field;
 public final class AppInfoChangedBlocker {
     private static final String TAG = "Tinker.AppInfoChangedBlocker";
 
-    public static boolean tryStart(Application app) {
+    public static boolean tryStart(Context context, String newResourcesPath) {
         if (Build.VERSION.SDK_INT < 26) {
             Log.i(TAG, "tryStart: SDK_INT is less than 26, skip rest logic.");
             return true;
         }
         try {
             ShareTinkerLog.i(TAG, "tryStart called.");
-            interceptHandler(fetchMHObject(app));
+            interceptHandler(fetchMHObject(context), newResourcesPath);
             ShareTinkerLog.i(TAG, "tryStart done.");
             return true;
         } catch (Throwable e) {
@@ -51,11 +52,11 @@ public final class AppInfoChangedBlocker {
         return (Handler) mHField.get(activityThread);
     }
 
-    private static void interceptHandler(Handler mH) throws Exception {
+    private static void interceptHandler(Handler mH, String newResourcesPath) throws Exception {
         final Field mCallbackField = ShareReflectUtil.findField(Handler.class, "mCallback");
         final Handler.Callback originCallback = (Handler.Callback) mCallbackField.get(mH);
         if (!(originCallback instanceof HackerCallback)) {
-            HackerCallback hackerCallback = new HackerCallback(originCallback, mH.getClass());
+            HackerCallback hackerCallback = new HackerCallback(originCallback, mH.getClass(), newResourcesPath);
             mCallbackField.set(mH, hackerCallback);
         } else {
             ShareTinkerLog.w(TAG, "Already intercepted, skip rest logic.");
@@ -66,10 +67,13 @@ public final class AppInfoChangedBlocker {
 
         private final int APPLICATION_INFO_CHANGED;
 
-        private Handler.Callback origin;
+        private final Handler.Callback origin;
 
-        HackerCallback(Handler.Callback ori, Class $H) {
+        private final String newResourcesPath;
+
+        HackerCallback(Handler.Callback ori, Class $H, String newResourcesPath) {
             this.origin = ori;
+            this.newResourcesPath = newResourcesPath;
             int appInfoChanged;
             try {
                 appInfoChanged = ShareReflectUtil.findField($H, "APPLICATION_INFO_CHANGED").getInt(null);
@@ -77,6 +81,7 @@ public final class AppInfoChangedBlocker {
                 appInfoChanged = 156; // default value
             }
             APPLICATION_INFO_CHANGED = appInfoChanged;
+
         }
 
         @Override
@@ -92,13 +97,19 @@ public final class AppInfoChangedBlocker {
 
         private boolean hackMessage(Message msg) {
             if (msg.what == APPLICATION_INFO_CHANGED) {
-                // We are generally in the background this moment(signal trigger is
-                // in front of user), and the signal was going to relaunch all our
-                // activities to apply new overlay resources. So we could simply kill
-                // ourselves, or ignore this signal, or reload tinker resources.
-                ShareTinkerLog.w(TAG, "Suicide now.");
-                Process.killProcess(Process.myPid());
-                return true;
+                if (msg.obj instanceof ApplicationInfo) {
+                    final ApplicationInfo appInfo = ((ApplicationInfo) msg.obj);
+                    appInfo.sourceDir = appInfo.publicSourceDir = newResourcesPath;
+                    return false;
+                } else {
+                    // We are generally in the background this moment(signal trigger is
+                    // in front of user), and the signal was going to relaunch all our
+                    // activities to apply new overlay resources. So we could simply kill
+                    // ourselves, or ignore this signal, or reload tinker resources.
+                    ShareTinkerLog.w(TAG, "Suicide now.");
+                    Process.killProcess(Process.myPid());
+                    return true;
+                }
             }
             return false;
         }
