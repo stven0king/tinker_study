@@ -98,6 +98,7 @@ public final class AppInfoChangedBlocker {
         private boolean hackMessage(Message msg) {
             if (msg.what == APPLICATION_INFO_CHANGED) {
                 if (msg.obj instanceof ApplicationInfo) {
+                    ShareTinkerLog.w(TAG, "Intercepted APPLICATION_INFO_CHANGED, update sourceDir and publicSourceDir before dispatching back to system.");
                     final ApplicationInfo appInfo = ((ApplicationInfo) msg.obj);
                     appInfo.sourceDir = appInfo.publicSourceDir = newResourcesPath;
                     return false;
