@@ -168,7 +168,7 @@ class TinkerResourcePatcher {
 
     /**
      * @param context
-     * @param externalResourceFile
+     * @param externalResourceFile data/data/包名/tinker/patch-xxx/res/resources.apk
      * @throws Throwable
      */
     public static void monkeyPatchExistingResources(Context context, String externalResourceFile) throws Throwable {
@@ -184,6 +184,7 @@ class TinkerResourcePatcher {
         } else {
             packagesFields = new Field[]{packagesFiled};
         }
+        // 遍历activityThread中的LoadedApk
         for (Field field : packagesFields) {
             final Object value = field.get(currentActivityThread);
 
@@ -194,6 +195,7 @@ class TinkerResourcePatcher {
                     continue;
                 }
                 final String resDirPath = (String) resDir.get(loadedApk);
+                // 找到原app的LoadedApk实例，将它的mResDir设为新资源包路径
                 if (appInfo.sourceDir.equals(resDirPath)) {
                     resDir.set(loadedApk, externalResourceFile);
                 }
@@ -201,12 +203,17 @@ class TinkerResourcePatcher {
         }
 
         // Create a new AssetManager instance and point it to the resources installed under
+        // newAssetManager为新创建的AssetManager，调用AssetManager.addAssetPath设置它的路径为新资源包
         if (((Integer) addAssetPathMethod.invoke(newAssetManager, externalResourceFile)) == 0) {
             throw new IllegalStateException("Could not create new AssetManager");
         }
 
         // Add SharedLibraries to AssetManager for resolve system resources not found issue
         // This influence SharedLibrary Package ID
+        // 7.0后系统还需调用AssetManager.addAssetPathAsSharedLibrary
+        // ApplicationInfo.sharedLibraryFiles存储app用到的共享资源库
+        // 共享资源库就是像so库一样，可以将资源包共享给其他应用使用
+        // 如果app用到了共享资源库，那么可能会遇到修复热修后 SharedLibrary R 类中的资源 ID 与 AssetManager 中 Package ID 不一致导致的资源找不到问题
         if (shouldAddSharedLibraryAssets(appInfo)) {
             for (String sharedLibrary : appInfo.sharedLibraryFiles) {
                 if (!sharedLibrary.endsWith(".apk")) {
@@ -221,11 +228,12 @@ class TinkerResourcePatcher {
 
         // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm
         // in L, so we do it unconditionally.
+        // 重新创建字符串资源索引
         if (stringBlocksField != null && ensureStringBlocksMethod != null) {
             stringBlocksField.set(newAssetManager, null);
             ensureStringBlocksMethod.invoke(newAssetManager);
         }
-
+        // 遍历ResourcesManager中Resources
         for (WeakReference<Resources> wr : references) {
             final Resources resources = wr.get();
             if (resources == null) {
@@ -234,17 +242,19 @@ class TinkerResourcePatcher {
             // Set the AssetManager of the Resources instance to our brand new one
             try {
                 //pre-N
+                // 将Resources.mAssets设为新创建的AssetManager
                 assetsFiled.set(resources, newAssetManager);
             } catch (Throwable ignore) {
                 // N
+                // android7.0以后该字段为Resources.mResourcesImpl.mAssets
                 final Object resourceImpl = resourcesImplFiled.get(resources);
                 // for Huawei HwResourcesImpl
                 final Field implAssets = findField(resourceImpl, "mAssets");
                 implAssets.set(resourceImpl, newAssetManager);
             }
-
+            // 清除Resources中typedArray缓存
             clearPreloadTypedArrayIssue(resources);
-
+            // 内部调用AssetManager.setConfiguration，刷新资源配置
             resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
         }
 
@@ -252,17 +262,19 @@ class TinkerResourcePatcher {
         // Issue: On Android N, if an activity contains a webview, when screen rotates
         // our resource patch may lost effects.
         // for 5.x/6.x, we found Couldn't expand RemoteView for StatusBarNotification Exception
+        // android7.0之后，如果activity包含webView，屏幕旋转后补丁资源会失效
         if (Build.VERSION.SDK_INT >= 24) {
             try {
                 if (publicSourceDirField != null) {
+                    // 重设ApplicationInfo.publicSourceDir
                     publicSourceDirField.set(context.getApplicationInfo(), externalResourceFile);
                 }
             } catch (Throwable ignore) {
                 // Ignored.
             }
         }
-
-        if (!checkResUpdate(context)) {
+        // 以类似test.dex的方式检查补丁资源是否加载成功
+        if (!checkResUpdate(context)) {//检查assets/only_use_to_test_tinker_resource.txt文件是否存在
             throw new TinkerRuntimeException(ShareConstants.CHECK_RES_INSTALL_FAIL);
         }
     }
@@ -294,6 +306,7 @@ class TinkerResourcePatcher {
         }
     }
 
+    //检查assets/only_use_to_test_tinker_resource.txt文件是否存在
     private static boolean checkResUpdate(Context context) {
         InputStream is = null;
         try {

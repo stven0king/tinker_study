@@ -71,6 +71,12 @@ public class ShareTinkerInternals {
         return VM_IS_JIT && Build.VERSION.SDK_INT < 24;
     }
 
+    /**
+     *  Android 中，方舟编译器（Ark Compiler）是华为开发的一种优化编译器，
+     *  用于将 Java 字节码转换为原生机器码，从而提高 Android 应用程序的性能和效率。
+     *  方舟编译器与传统的 Dalvik 虚拟机或者 ART（Android Runtime）有所不同，
+     *  它采用了更高效的编译技术，以提供更快的应用程序执行速度。
+     */
     public static boolean isArkHotRuning() {
         if (isARKHotRunning != null) {
             return isARKHotRunning;
@@ -160,6 +166,8 @@ public class ShareTinkerInternals {
     /**
      * thinker package check
      *
+     * 对于patch包进行校验
+     *
      * @param context
      * @param tinkerFlag
      * @param patchFile
@@ -177,31 +185,35 @@ public class ShareTinkerInternals {
     /**
      * check patch file signature and TINKER_ID
      *
+     * 校验签名和TinkerID
+     *
      * @param context
      * @param patchFile
      * @param securityCheck
      * @return
      */
     public static int checkSignatureAndTinkerID(Context context, File patchFile, ShareSecurityCheck securityCheck) {
+        //签名对比
         if (!securityCheck.verifyPatchMetaSignature(patchFile)) {
             return ShareConstants.ERROR_PACKAGE_CHECK_SIGNATURE_FAIL;
         }
-
+        //获取Manifest中的tinkerId
         String oldTinkerId = getManifestTinkerID(context);
         if (oldTinkerId == null) {
             return ShareConstants.ERROR_PACKAGE_CHECK_APK_TINKER_ID_NOT_FOUND;
         }
-
+        //获取package_meta.txt的内容
         HashMap<String, String> properties = securityCheck.getPackagePropertiesIfPresent();
 
         if (properties == null) {
             return ShareConstants.ERROR_PACKAGE_CHECK_PACKAGE_META_NOT_FOUND;
         }
-
+        //获取package_meta.txt中的tinkerId
         String patchTinkerId = properties.get(ShareConstants.TINKER_ID);
         if (patchTinkerId == null) {
             return ShareConstants.ERROR_PACKAGE_CHECK_PATCH_TINKER_ID_NOT_FOUND;
         }
+        //对比tinkerID
         if (!oldTinkerId.equals(patchTinkerId)) {
             ShareTinkerLog.e(TAG, "tinkerId in patch is not matched with the one in base pack, base: %s, patch: %s.",
                     oldTinkerId, patchTinkerId);
@@ -211,6 +223,13 @@ public class ShareTinkerInternals {
     }
 
 
+    /**
+     * 校验patch包中的修复内容和tinker配置的修复项是否吻合
+     *
+     * 如果patch包有dex_meta.txt文件，那么tinker必须支持dex修复
+     * 如果patch包有so_meta.txt文件，那么tinker必须支持so修复
+     * 如果patch包有res_meta.txt文件，那么tinker必须支持res修复
+     */
     public static int checkPackageAndTinkerFlag(ShareSecurityCheck securityCheck, int tinkerFlag) {
         if (isTinkerEnabledAll(tinkerFlag)) {
             return ShareConstants.ERROR_PACKAGE_CHECK_OK;

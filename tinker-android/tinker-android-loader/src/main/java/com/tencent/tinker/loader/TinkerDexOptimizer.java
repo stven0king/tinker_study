@@ -71,8 +71,8 @@ public final class TinkerDexOptimizer {
     /**
      * Optimize (trigger dexopt or dex2oat) dexes.
      *
-     * @param dexFiles
-     * @param optimizedDir
+     * @param dexFiles  data/data/com.xxx.xxx/tinker/patch-416739de/dex/tinker_classN.apk
+     * @param optimizedDir  data/data/com.xxx.xxx/tinker/patch-416739de/odex/
      * @param cb
      * @return If all dexes are optimized successfully, return true. Otherwise return false.
      */
@@ -131,17 +131,17 @@ public final class TinkerDexOptimizer {
         OptimizeWorker(Context context, File dexFile, File optimizedDir, boolean useInterpretMode,
                        boolean useDLC, String targetISA, ResultCallback cb) {
             this.context = context;
-            this.dexFile = dexFile;
-            this.optimizedDir = optimizedDir;
-            this.useInterpretMode = useInterpretMode;
-            this.useDLC = useDLC;
+            this.dexFile = dexFile;//data/data/com.xxx.xxx/tinker/patch-416739de/dex/tinker_classN.apk
+            this.optimizedDir = optimizedDir;//data/data/com.xxx.xxx/tinker/patch-416739de/odex/
+            this.useInterpretMode = useInterpretMode;//false
+            this.useDLC = useDLC;//false
             this.callback = cb;
-            this.targetISA = targetISA;
+            this.targetISA = targetISA;//null
         }
 
         boolean run() {
             try {
-                if (!SharePatchFileUtil.isLegalFile(dexFile)) {
+                if (!SharePatchFileUtil.isLegalFile(dexFile)) {//校验tinker_classN.apk是否合法
                     if (callback != null) {
                         callback.onFailed(dexFile, optimizedDir,
                                 new IOException("dex file " + dexFile.getAbsolutePath() + " is not exist!"));
@@ -151,24 +151,30 @@ public final class TinkerDexOptimizer {
                 if (callback != null) {
                     callback.onStart(dexFile, optimizedDir);
                 }
+                //data/data/com.xxx.xxx/tinker/patch-416739de/dex/oat/arm/tinker_classN.odex
                 String optimizedPath = SharePatchFileUtil.optimizedPathFor(this.dexFile, this.optimizedDir);
                 if (!ShareTinkerInternals.isArkHotRuning()) {
                     if (useInterpretMode) {
+                        // 以解释模式编译，系统OTA后第一次运行时执行此分支
                         interpretDex2Oat(dexFile.getAbsolutePath(), optimizedPath, targetISA);
                     } else if (Build.VERSION.SDK_INT >= 26
-                            || (Build.VERSION.SDK_INT >= 25 && Build.VERSION.PREVIEW_SDK_INT != 0)) {
+                            || (Build.VERSION.SDK_INT >= 25 && Build.VERSION.PREVIEW_SDK_INT != 0)) {//大于Android7.1版本，或者是Android7.1的预览版
+                        // 通过PathClassLoader/加载dex触发dex2oat（Android7.1的预览版，Android8.0、Android8.1，Android9.0）
                         patchClassLoaderStrongRef = NewClassLoaderInjector.triggerDex2Oat(context, optimizedDir,
                                 useDLC, dexFile.getAbsolutePath());
-                        if (Build.VERSION.SDK_INT < 31 && !(Build.VERSION.SDK_INT == 30 && Build.VERSION.PREVIEW_SDK_INT != 0)) {
+                        if (Build.VERSION.SDK_INT < 31 && !(Build.VERSION.SDK_INT == 30 && Build.VERSION.PREVIEW_SDK_INT != 0)) {//小于Android12，不是Android11的预览版
                             // Android Q is significantly slowed down by Fallback Dex Loading procedure, so we
                             // trigger background dexopt to generate executable odex here.
-                            triggerPMDexOptOnDemand(context, dexFile.getAbsolutePath(), optimizedPath);
-                        } else {
+                            //https://developer.android.google.cn/about/versions/10/behavior-changes-10?hl=zh-cn#system-only-oat
+                            //AndroidQ 的Fallback Dex加载过程显着减慢了速度，所以我们这里触发后台dexopt生成可执行odex。
+                            triggerPMDexOptOnDemand(context, dexFile.getAbsolutePath(), optimizedPath);//小于AndroidO不执行
+                        } else {//大于等于Android12
                             triggerPMDexOptOnDemand(context, dexFile.getAbsolutePath(), optimizedPath);
                             final String vdexPath = optimizedPath.substring(0, optimizedPath.lastIndexOf(ODEX_SUFFIX)) + VDEX_SUFFIX;
+                            //等待VDex的生成或者超时
                             waitUntilVdexGeneratedOrTimeout(context, vdexPath);
                         }
-                    } else {
+                    } else {//小于等于Android7.0
                         DexFile.loadDex(dexFile.getAbsolutePath(), optimizedPath, 0);
                     }
                 }
@@ -186,6 +192,10 @@ public final class TinkerDexOptimizer {
         }
     }
 
+    /**
+     * 仅供Android29以上设备执行
+     * 文章链接：https://mp.weixin.qq.com/s/5kwU-84TbsO3Tk5QDzNKwA
+     */
     private static void triggerPMDexOptOnDemand(Context context, String dexPath, String oatPath) {
         if (Build.VERSION.SDK_INT < 29) {
             // Only do this trick on Android Q, R and newer devices.

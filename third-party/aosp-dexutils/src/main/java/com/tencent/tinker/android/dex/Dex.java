@@ -167,7 +167,7 @@ public final class Dex {
     private void loadFrom(InputStream in, int initSize) throws IOException {
         byte[] rawData = FileUtils.readStream(in, initSize);
         this.data = ByteBuffer.wrap(rawData);
-        this.data.order(ByteOrder.LITTLE_ENDIAN);
+        this.data.order(ByteOrder.LITTLE_ENDIAN);//设置最低有效字节存储在最低的内存地址处，最高有效字节存储在最高的内存出
         this.tableOfContents.readFrom(this);
     }
 

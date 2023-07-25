@@ -43,7 +43,17 @@ public class SharePatchInfo {
     public static final String DEFAULT_DIR                 = ShareConstants.DEFAULT_DEX_OPTIMIZE_PATH;
     public String oldVersion;
     public String newVersion;
+    /**
+     * {@link com.tencent.tinker.lib.patch.UpgradePatch#tryPatch}
+     *
+     * 无论是首次更新，还是再次更新。这个值都是false
+     */
     public boolean isProtectedApp;
+    /**
+     * {@link com.tencent.tinker.lib.patch.UpgradePatch#tryPatch}
+     *
+     * 无论是首次更新，还是再次更新。这个值都是false
+     */
     public boolean isRemoveNewVersion;
     public String fingerPrint;
     public String oatDir;

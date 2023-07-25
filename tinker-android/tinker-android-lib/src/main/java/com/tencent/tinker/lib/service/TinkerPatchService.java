@@ -238,7 +238,7 @@ public class TinkerPatchService extends IntentService {
 
             unmarkRunning(context);
             sIsPatchApplying.set(false);
-
+            //收到结果之后，通知Service杀掉进程
             AbstractResultService.runResultService(context, patchResult, getPatchResultExtra(intent));
         } finally {
             unmarkRunning(context);

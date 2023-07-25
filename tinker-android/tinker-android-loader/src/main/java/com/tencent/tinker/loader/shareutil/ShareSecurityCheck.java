@@ -62,6 +62,15 @@ public class ShareSecurityCheck {
 
     /**
      * Nullable
+     * package_meta.txt中的内容
+     * #base package config field
+     * #Wed Jul 19 15:26:32 CST 2023
+     * platform=all
+     * NEW_TINKER_ID=tinker_id_101810
+     * TINKER_ID=tinker_id_101810
+     * is_protected_app=0
+     * patchMessage=tinker is sample to use
+     * patchVersion=1.0
      *
      * @return HashMap<String, String>
      */
@@ -69,7 +78,7 @@ public class ShareSecurityCheck {
         if (!packageProperties.isEmpty()) {
             return packageProperties;
         }
-
+        //package_meta.txt
         String property = metaContentMap.get(ShareConstants.PACKAGE_META_FILE);
 
         if (property == null) {
@@ -95,6 +104,10 @@ public class ShareSecurityCheck {
         return packageProperties;
     }
 
+    /**
+     * 读取patch包中*meta.txt文件内容进行存储，并对其签名和当前apk的签名进行对比
+     * @param path 下载好的patch包
+     */
     public boolean verifyPatchMetaSignature(File path) {
         if (!SharePatchFileUtil.isLegalFile(path)) {
             return false;

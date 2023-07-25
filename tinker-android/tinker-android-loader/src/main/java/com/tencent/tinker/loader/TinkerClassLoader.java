@@ -26,6 +26,7 @@ public final class TinkerClassLoader extends PathClassLoader {
     TinkerClassLoader(String dexPath, File optimizedDir, String libraryPath, ClassLoader originAppClassLoader) {
         super("", libraryPath, ClassLoader.getSystemClassLoader());
         mOriginAppClassLoader = originAppClassLoader;
+        // 反射将修复后dex插入DexPathList的dexElements最前面
         injectDexPath(this, dexPath, optimizedDir);
     }
 
@@ -81,6 +82,8 @@ public final class TinkerClassLoader extends PathClassLoader {
                 dexFiles.add(new File(oneDexPath));
             }
             if (!dexFiles.isEmpty()) {
+                // 反射调用DexPathList makePathElements方法，依次加载dex触发dex2oat，生成Element
+                // 将Element插入ClassLoader的DexPathList的dexElements最前面
                 SystemClassLoaderAdder.injectDexesInternal(cl, dexFiles, optimizedDir);
             }
         } catch (Throwable thr) {

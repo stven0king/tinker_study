@@ -463,8 +463,8 @@ public class SharePatchFileUtil {
      * change the jar file path as the makeDexElements do
      * Android O change its path
      *
-     * @param path
-     * @param optimizedDirectory
+     * @param path data/data/com.xxx.xxx/tinker/patch-416739de/dex/tinker_classN.apk
+     * @param optimizedDirectory data/data/com.xxx.xxx/tinker/patch-416739de/odex/
      * @return
      */
     public static String optimizedPathFor(File path, File optimizedDirectory) {
@@ -472,7 +472,7 @@ public class SharePatchFileUtil {
             // dex_location = /foo/bar/baz.jar
             // odex_location = /foo/bar/oat/<isa>/baz.odex
 
-            String currentInstructionSet;
+            String currentInstructionSet;//当前的指令集是arm，还是arm64
             try {
                 currentInstructionSet = ShareTinkerInternals.getCurrentInstructionSet();
             } catch (Exception e) {
@@ -485,7 +485,7 @@ public class SharePatchFileUtil {
             if (index > 0) {
                 fileName = fileName.substring(0, index);
             }
-
+            //data/data/com.xxx.xxx/tinker/patch-416739de/dex/oat/arm/tinker_classN.odex
             String result = parentFile.getAbsolutePath() + "/oat/"
                 + currentInstructionSet + "/" + fileName + ShareConstants.ODEX_SUFFIX;
             return result;
@@ -503,7 +503,7 @@ public class SharePatchFileUtil {
                 fileName = sb.toString();
             }
         }
-
+        //data/data/com.xxx.xxx/tinker/patch-416739de/dex/tinker_classN.dex
         File result = new File(optimizedDirectory, fileName);
         return result.getPath();
     }

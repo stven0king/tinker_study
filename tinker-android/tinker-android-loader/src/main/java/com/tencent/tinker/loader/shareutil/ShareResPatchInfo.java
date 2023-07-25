@@ -43,6 +43,19 @@ public class ShareResPatchInfo {
 
     public HashSet<Pattern> patterns = new HashSet<>();
 
+    /**
+     * resources_out.zip,3405355886,ead6711915011a9b34b6c3f33848cd4a
+     * pattern:3
+     * resources.arsc
+     * res/*
+     * assets/*
+     * large modify:1
+     * resources.arsc,ead6711915011a9b34b6c3f33848cd4a,1037332599
+     * modify:1
+     * res/muR.xml
+     * add:1
+     * assets/only_use_to_test_tinker_resource.txt
+     */
     public static void parseAllResPatchInfo(String meta, ShareResPatchInfo info) {
         if (meta == null || meta.length() == 0) {
             return;
@@ -53,53 +66,53 @@ public class ShareResPatchInfo {
             if (line == null || line.length() <= 0) {
                 continue;
             }
-            if (line.startsWith(ShareConstants.RES_TITLE)) {
+            if (line.startsWith(ShareConstants.RES_TITLE)) {//resources_out.zip
                 final String[] kv = line.split(",", 3);
-                info.arscBaseCrc = kv[1];
-                info.resArscMd5 = kv[2];
-            } else if (line.startsWith(ShareConstants.RES_PATTERN_TITLE)) {
+                info.arscBaseCrc = kv[1];//基准包中的res文件的crc
+                info.resArscMd5 = kv[2];//合并之后的resources.rsc文件的md5
+            } else if (line.startsWith(ShareConstants.RES_PATTERN_TITLE)) {//pattern
                 final String[] kv = line.split(":", 2);
-                int size = Integer.parseInt(kv[1]);
-                for (; size > 0; size--) {
+                int size = Integer.parseInt(kv[1]);//正则种类
+                for (; size > 0; size--) {//获取对应的正则表达式
                     info.patterns.add(convertToPatternString(lines[i + 1]));
                     i++;
                 }
-            } else if (line.startsWith(ShareConstants.RES_ADD_TITLE)) {
+            } else if (line.startsWith(ShareConstants.RES_ADD_TITLE)) {//add
                 final String[] kv = line.split(":", 2);
-                int size = Integer.parseInt(kv[1]);
-                for (; size > 0; size--) {
+                int size = Integer.parseInt(kv[1]);//添加了几个文件
+                for (; size > 0; size--) {//获取添加的文件
                     info.addRes.add(lines[i + 1]);
                     i++;
                 }
-            } else if (line.startsWith(ShareConstants.RES_MOD_TITLE)) {
+            } else if (line.startsWith(ShareConstants.RES_MOD_TITLE)) {//modify
                 final String[] kv = line.split(":", 2);
-                int size = Integer.parseInt(kv[1]);
-                for (; size > 0; size--) {
+                int size = Integer.parseInt(kv[1]);//修改了几个文件
+                for (; size > 0; size--) {//添加修改的文件
                     info.modRes.add(lines[i + 1]);
                     i++;
                 }
-            } else if (line.startsWith(ShareConstants.RES_LARGE_MOD_TITLE)) {
+            } else if (line.startsWith(ShareConstants.RES_LARGE_MOD_TITLE)) {//large modify:
                 final String[] kv = line.split(":", 2);
-                int size = Integer.parseInt(kv[1]);
+                int size = Integer.parseInt(kv[1]);//大修的文件数量
                 for (; size > 0; size--) {
                     String nextLine = lines[i + 1];
                     final String[] data = nextLine.split(",", 3);
-                    String name = data[0];
+                    String name = data[0];//文件名称
                     LargeModeInfo largeModeInfo = new LargeModeInfo();
-                    largeModeInfo.md5 = data[1];
-                    largeModeInfo.crc = Long.parseLong(data[2]);
+                    largeModeInfo.md5 = data[1];//文件MD5值
+                    largeModeInfo.crc = Long.parseLong(data[2]);//文件的crc
                     info.largeModRes.add(name);
                     info.largeModMap.put(name, largeModeInfo);
                     i++;
                 }
-            } else if (line.startsWith(ShareConstants.RES_DEL_TITLE)) {
+            } else if (line.startsWith(ShareConstants.RES_DEL_TITLE)) {//delete
                 final String[] kv = line.split(":", 2);
                 int size = Integer.parseInt(kv[1]);
                 for (; size > 0; size--) {
                     info.deleteRes.add(lines[i + 1]);
                     i++;
                 }
-            } else if (line.startsWith(ShareConstants.RES_STORE_TITLE)) {
+            } else if (line.startsWith(ShareConstants.RES_STORE_TITLE)) {//store
                 final String[] kv = line.split(":", 2);
                 int size = Integer.parseInt(kv[1]);
                 for (; size > 0; size--) {

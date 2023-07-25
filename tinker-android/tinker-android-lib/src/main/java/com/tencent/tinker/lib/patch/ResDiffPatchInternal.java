@@ -53,10 +53,11 @@ public class ResDiffPatchInternal extends BasePatchInternal {
     protected static boolean tryRecoverResourceFiles(Tinker manager, ShareSecurityCheck checker, Context context,
                                                 String patchVersionDirectory, File patchFile) {
 
-        if (!manager.isEnabledForResource()) {
+        if (!manager.isEnabledForResource()) {//判断是否支持资源热修复
             ShareTinkerLog.w(TAG, "patch recover, resource is not enabled");
             return true;
         }
+        //读取res_meta.txt文件内容
         String resourceMeta = checker.getMetaContentMap().get(RES_META_FILE);
 
         if (resourceMeta == null || resourceMeta.length() == 0) {
@@ -71,10 +72,29 @@ public class ResDiffPatchInternal extends BasePatchInternal {
         return result;
     }
 
+    /**
+     * @param patchVersionDirectory  data/data/com.xxx.xxx/tinker/patch-416739de/
+     * @param meta res_meta.txt
+     * @param patchFile  data/data/com.xxx.xxx/tinker/patch-416739de/patch-416739de.apk
+     *
+     * resources_out.zip,3405355886,ead6711915011a9b34b6c3f33848cd4a
+     * pattern:3
+     * resources.arsc
+     * res/*
+     * assets/*
+     * large modify:1
+     * resources.arsc,ead6711915011a9b34b6c3f33848cd4a,1037332599
+     * modify:1
+     * res/muR.xml
+     * add:1
+     * assets/only_use_to_test_tinker_resource.txt
+     *
+     * <img src="https://pic4.58cdn.com.cn/nowater/frs/n_v39ca4bf46a18f467a843114126a7c7424.png"/>
+     */
     private static boolean patchResourceExtractViaResourceDiff(Context context, String patchVersionDirectory,
                                                                String meta, File patchFile) {
         String dir = patchVersionDirectory + "/" + ShareConstants.RES_PATH + "/";
-
+        //data/data/com.xxx.xxx/tinker/patch-416739de/res/
         if (!extractResourceDiffInternals(context, dir, meta, patchFile, TYPE_RESOURCE)) {
             ShareTinkerLog.w(TAG, "patch recover, extractDiffInternals fail");
             return false;
@@ -82,8 +102,12 @@ public class ResDiffPatchInternal extends BasePatchInternal {
         return true;
     }
 
+    /**
+     *
+     */
     private static boolean extractResourceDiffInternals(Context context, String dir, String meta, File patchFile, int type) {
         ShareResPatchInfo resPatchInfo = new ShareResPatchInfo();
+        //解析res_meta.txt
         ShareResPatchInfo.parseAllResPatchInfo(meta, resPatchInfo);
         ShareTinkerLog.i(TAG, "res dir: %s, meta: %s", dir, resPatchInfo.toString());
         Tinker manager = Tinker.with(context);
@@ -99,8 +123,8 @@ public class ResDiffPatchInternal extends BasePatchInternal {
 
         File resOutput = new File(directory, ShareConstants.RES_NAME);
         //check result file whether already exist
-        if (resOutput.exists()) {
-            if (SharePatchFileUtil.checkResourceArscMd5(resOutput, resPatchInfo.resArscMd5)) {
+        if (resOutput.exists()) {//resources.apk文件已经存在
+            if (SharePatchFileUtil.checkResourceArscMd5(resOutput, resPatchInfo.resArscMd5)) {//校验md5
                 //it is ok, just continue
                 ShareTinkerLog.w(TAG, "resource file %s is already exist, and md5 match, just return true", resOutput.getPath());
                 return true;
@@ -121,7 +145,7 @@ public class ResDiffPatchInternal extends BasePatchInternal {
             }
             String apkPath = applicationInfo.sourceDir;
 
-
+            //合并resources.arsc
             if (!checkAndExtractResourceLargeFile(context, apkPath, directory, tempResFileDirectory, patchFile, resPatchInfo, type)) {
                 return false;
             }
@@ -146,6 +170,8 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                     }
                     if (ShareResPatchInfo.checkFileInPattern(resPatchInfo.patterns, name)) {
                         //won't contain in add set.
+                        //不包含，删除的，修改的，resources.arsc（按照res_meta.txt文件中的pattern规则进行）
+                        //如果有AndroidManifest，那么这个时候不提取AndroidManifest文件
                         if (!resPatchInfo.deleteRes.contains(name)
                             && !resPatchInfo.modRes.contains(name)
                             && !resPatchInfo.largeModRes.contains(name)
@@ -163,7 +189,7 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                     manager.getPatchReporter().onPatchTypeExtractFail(patchFile, resOutput, ShareConstants.RES_MANIFEST, type);
                     return false;
                 }
-                TinkerZipUtil.extractTinkerEntry(oldApk, manifestZipEntry, out);
+                TinkerZipUtil.extractTinkerEntry(oldApk, manifestZipEntry, out);//解压AndroidManifest.xml到out
                 totalEntryCount++;
 
                 for (String name : resPatchInfo.largeModRes) {
@@ -174,6 +200,7 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                         return false;
                     }
                     ShareResPatchInfo.LargeModeInfo largeModeInfo = resPatchInfo.largeModMap.get(name);
+                    //将合并之后的resources.arsc文件压缩到out中
                     TinkerZipUtil.extractLargeModifyFile(largeZipEntry, largeModeInfo.file, largeModeInfo.crc, out);
                     totalEntryCount++;
                 }
@@ -189,6 +216,7 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                         File storeFile = resPatchInfo.storeRes.get(name);
                         TinkerZipUtil.extractLargeModifyFile(addZipEntry, storeFile, addZipEntry.getCrc(), out);
                     } else {
+                        //将新增的资源文件，压缩到out中
                         TinkerZipUtil.extractTinkerEntry(newApk, addZipEntry, out);
                     }
                     totalEntryCount++;
@@ -205,6 +233,7 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                         File storeFile = resPatchInfo.storeRes.get(name);
                         TinkerZipUtil.extractLargeModifyFile(modZipEntry, storeFile, modZipEntry.getCrc(), out);
                     } else {
+                        //将修改的资源文件，压缩到out中
                         TinkerZipUtil.extractTinkerEntry(newApk, modZipEntry, out);
                     }
                     totalEntryCount++;
@@ -219,6 +248,7 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                 //delete temp files
                 SharePatchFileUtil.deleteDir(tempResFileDirectory);
             }
+            //校验resOutput中的resources.arsc的md5是否和resArscMd5相同
             boolean result = SharePatchFileUtil.checkResourceArscMd5(resOutput, resPatchInfo.resArscMd5);
 
             if (!result) {
@@ -246,21 +276,21 @@ public class ResDiffPatchInternal extends BasePatchInternal {
             apkFile = new ZipFile(apkPath);
             ZipEntry arscEntry = apkFile.getEntry(ShareConstants.RES_ARSC);
             File arscFile = new File(directory, ShareConstants.RES_ARSC);
-            if (arscEntry == null) {
+            if (arscEntry == null) {//判断apk职工的resources.arsc文件是否存在
                 ShareTinkerLog.w(TAG, "resources apk entry is null. path:" + ShareConstants.RES_ARSC);
                 manager.getPatchReporter().onPatchTypeExtractFail(patchFile, arscFile, ShareConstants.RES_ARSC, type);
                 return false;
             }
             //use base resources.arsc crc to identify base.apk
             String baseArscCrc = String.valueOf(arscEntry.getCrc());
-            if (!baseArscCrc.equals(resPatchInfo.arscBaseCrc)) {
+            if (!baseArscCrc.equals(resPatchInfo.arscBaseCrc)) {//对比基准包中的resources.arsc文件的crc
                 ShareTinkerLog.e(TAG, "resources.arsc's crc is not equal, expect crc: %s, got crc: %s", resPatchInfo.arscBaseCrc, baseArscCrc);
                 manager.getPatchReporter().onPatchTypeExtractFail(patchFile, arscFile, ShareConstants.RES_ARSC, type);
                 return false;
             }
 
             //resource arsc is not changed, just return true
-            if (resPatchInfo.largeModRes.isEmpty() && resPatchInfo.storeRes.isEmpty()) {
+            if (resPatchInfo.largeModRes.isEmpty() && resPatchInfo.storeRes.isEmpty()) {//判断资源是否需要进行热修复
                 ShareTinkerLog.i(TAG, "no large modify or store resources, just return");
                 return true;
             }
@@ -277,6 +307,7 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                     manager.getPatchReporter().onPatchTypeExtractFail(patchFile, destCopy, name, type);
                     return false;
                 }
+                //提取对应的文件
                 extract(patchZipFile, patchEntry, destCopy, null, false);
                 //fast check, only check size
                 if (patchEntry.getSize() != destCopy.length()) {
@@ -307,14 +338,14 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                     manager.getPatchReporter().onPatchPackageCheckFail(patchFile, BasePatchInternal.getMetaCorruptedCode(type));
                     return false;
                 }
-                ZipEntry patchEntry = patchZipFile.getEntry(name);
+                ZipEntry patchEntry = patchZipFile.getEntry(name);//获取patch包的resources.arsc
                 if (patchEntry == null) {
                     ShareTinkerLog.w(TAG, "large mod patch entry is null. path:" + name);
                     manager.getPatchReporter().onPatchTypeExtractFail(patchFile, largeModeInfo.file, name, type);
                     return false;
                 }
 
-                ZipEntry baseEntry = apkFile.getEntry(name);
+                ZipEntry baseEntry = apkFile.getEntry(name);//获取基础包的resources.arsc
                 if (baseEntry == null) {
                     ShareTinkerLog.w(TAG, "resources apk entry is null. path:" + name);
                     manager.getPatchReporter().onPatchTypeExtractFail(patchFile, largeModeInfo.file, name, type);
@@ -325,6 +356,7 @@ public class ResDiffPatchInternal extends BasePatchInternal {
                 try {
                     oldStream = apkFile.getInputStream(baseEntry);
                     newStream = patchZipFile.getInputStream(patchEntry);
+                    //resources.arsc文件进行合并
                     BSPatch.patchFast(oldStream, newStream, largeModeInfo.file);
                 } finally {
                     IOHelper.closeQuietly(oldStream);

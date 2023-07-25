@@ -55,6 +55,7 @@ final class NewClassLoaderInjector {
                                                     boolean useDLC,
                                                     boolean forActualLoading,
                                                     String... patchDexPaths) throws Throwable {
+        // 反射获取BaseDexClassLoader的DexPathList字段
         final Field pathListField = findField(
                 Class.forName("dalvik.system.BaseDexClassLoader", false, oldClassLoader),
                 "pathList");
@@ -62,6 +63,7 @@ final class NewClassLoaderInjector {
 
         final StringBuilder dexPathBuilder = new StringBuilder();
         final boolean hasPatchDexPaths = patchDexPaths != null && patchDexPaths.length > 0;
+        // 拼接需要dex2oat的dex文件路径
         if (hasPatchDexPaths) {
             for (int i = 0; i < patchDexPaths.length; ++i) {
                 if (i > 0) {
@@ -73,7 +75,7 @@ final class NewClassLoaderInjector {
 
         final String combinedDexPath = dexPathBuilder.toString();
 
-
+        // 反射DexPathList中nativeLibraryDirectories字段，so库路径
         final Field nativeLibraryDirectoriesField = findField(oldPathList.getClass(), "nativeLibraryDirectories");
         List<File> oldNativeLibraryDirectories = null;
         if (nativeLibraryDirectoriesField.getType().isArray()) {
@@ -81,6 +83,7 @@ final class NewClassLoaderInjector {
         } else {
             oldNativeLibraryDirectories = (List<File>) nativeLibraryDirectoriesField.get(oldPathList);
         }
+        // 拼接so库路径
         final StringBuilder libraryPathBuilder = new StringBuilder();
         boolean isFirstItem = true;
         for (File libDir : oldNativeLibraryDirectories) {
@@ -99,7 +102,14 @@ final class NewClassLoaderInjector {
 
         ClassLoader result = null;
         if (useDLC && Build.VERSION.SDK_INT >= 27) {
+            // https://developer.android.google.cn/reference/dalvik/system/DelegateLastClassLoader
+            // http://aospxref.com/android-10.0.0_r47/xref/libcore/dalvik/src/main/java/dalvik/system/DelegateLastClassLoader.java
+            // DelegateLastClassLoader是android8.1后新增的，继承于PathClassLoader，实行最后查找策略
+            // 从boot classpath中查找类
+            // 从该classLoader的DexPathList中查找类
+            // 最后从该classLoader的双亲中查找类
             result = new DelegateLastClassLoader(combinedDexPath, combinedLibraryPath, ClassLoader.getSystemClassLoader());
+            // 将之前的PathClassLoader设为创建的DelegateLastClassLoader的双亲
             final Field parentField = ClassLoader.class.getDeclaredField("parent");
             parentField.setAccessible(true);
             parentField.set(result, oldClassLoader);
@@ -109,7 +119,13 @@ final class NewClassLoaderInjector {
 
         // 'EnsureSameClassLoader' mechanism which is first introduced in Android O
         // may cause exception if we replace definingContext of old classloader.
+        // Android8.0之前版本替换原本的PathClassLoader中PathList中的classLoader为新创建的
+        // Android 8.0之后不支持多个类加载器同时使用同一个DexFile对象来定义类，所以不能替换
+        //在之前的 Android 版本中，每个类加载器都有自己独立的类定义空间，允许多个类加载器同时加载同一个 dex 文件并定义类。
+        //但是，在 Android 8.0 中，所有的 dex 文件都被加载到共享的命名空间中，不同类加载器无法同时加载同一个 dex 文件。
         if (forActualLoading && Build.VERSION.SDK_INT < 26) {
+            //private final ClassLoader definingContext;
+            //http://aospxref.com/android-7.0.0_r7/xref/libcore/dalvik/src/main/java/dalvik/system/DexPathList.java
             findField(oldPathList.getClass(), "definingContext").set(oldPathList, result);
         }
 

@@ -223,9 +223,12 @@ public class SystemClassLoaderAdder {
              * dalvik.system.DexPathList pathList field to append additional DEX
              * file entries.
              */
+            // 获取BaseDexClassLoader.pathList
             Field pathListField = ShareReflectUtil.findField(loader, "pathList");
             Object dexPathList = pathListField.get(loader);
             ArrayList<IOException> suppressedExceptions = new ArrayList<IOException>();
+            // makePathElements反射调用DexPathList.makePathElements/makeDexElements得到Element数组
+            // 将补丁dex生成的Element数组插入DexPathList.dexElements
             ShareReflectUtil.expandFieldArray(dexPathList, "dexElements", makePathElements(dexPathList,
                 new ArrayList<File>(additionalClassPathEntries), optimizedDirectory,
                 suppressedExceptions));

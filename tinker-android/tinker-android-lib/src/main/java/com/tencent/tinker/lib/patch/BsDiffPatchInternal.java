@@ -65,13 +65,14 @@ public class BsDiffPatchInternal extends BasePatchInternal {
 
     private static boolean patchLibraryExtractViaBsDiff(Context context, String patchVersionDirectory, String meta, File patchFile) {
         String dir = patchVersionDirectory + "/" + SO_PATH + "/";
+        ///data/data/com.xxx.xxx/tinker/patch-416739de/lib/
         return extractBsDiffInternals(context, dir, meta, patchFile, TYPE_LIBRARY);
     }
 
     private static boolean extractBsDiffInternals(Context context, String dir, String meta, File patchFile, int type) {
         //parse
         ArrayList<ShareBsDiffPatchInfo> patchList = new ArrayList<>();
-
+        //解析so_meta.txt
         ShareBsDiffPatchInfo.parseDiffPatchInfo(meta, patchList);
 
         if (patchList.isEmpty()) {
@@ -109,7 +110,7 @@ public class BsDiffPatchInternal extends BasePatchInternal {
                     patchRealPath = info.path + "/" + info.name;
                 }
                 final String fileMd5 = info.md5;
-                if (!SharePatchFileUtil.checkIfMd5Valid(fileMd5)) {
+                if (!SharePatchFileUtil.checkIfMd5Valid(fileMd5)) {//md5值校验
                     ShareTinkerLog.w(TAG, "meta file md5 mismatch, type:%s, name: %s, md5: %s", ShareTinkerInternals.getTypeString(type), info.name, info.md5);
                     manager.getPatchReporter().onPatchPackageCheckFail(patchFile, BasePatchInternal.getMetaCorruptedCode(type));
                     return false;
@@ -121,8 +122,8 @@ public class BsDiffPatchInternal extends BasePatchInternal {
                 File extractedFile = new File(dir + middle);
 
                 //check file whether already exist
-                if (extractedFile.exists()) {
-                    if (fileMd5.equals(SharePatchFileUtil.getMD5(extractedFile))) {
+                if (extractedFile.exists()) {//待提取的so文件已经存在
+                    if (fileMd5.equals(SharePatchFileUtil.getMD5(extractedFile))) {//校验提取的so文件的md5值，如果相同则保留。不同则删除
                         //it is ok, just continue
                         ShareTinkerLog.w(TAG, "bsdiff file %s is already exist, and md5 match, just continue", extractedFile.getPath());
                         continue;
@@ -145,7 +146,8 @@ public class BsDiffPatchInternal extends BasePatchInternal {
                     return false;
                 }
 
-                if (patchFileMd5.equals("0")) {
+                if (patchFileMd5.equals("0")) {//so文件为新增的文件
+                    //把patch包中的so文件解压到对应的目录，并校验md5值
                     if (!extract(patch, patchFileEntry, extractedFile, fileMd5, false)) {
                         ShareTinkerLog.w(TAG, "Failed to extract file " + extractedFile.getPath());
                         manager.getPatchReporter().onPatchTypeExtractFail(patchFile, extractedFile, info.name, type);
@@ -153,6 +155,7 @@ public class BsDiffPatchInternal extends BasePatchInternal {
                     }
                 } else {
                     //we do not check the intermediate files' md5 to save time, use check whether it is 32 length
+                    //为了节省时间，我们不检查中间文件的md5，使用检查其长度是否为32
                     if (!SharePatchFileUtil.checkIfMd5Valid(patchFileMd5)) {
                         ShareTinkerLog.w(TAG, "meta file md5 mismatch, type:%s, name: %s, md5: %s", ShareTinkerInternals.getTypeString(type), info.name, patchFileMd5);
                         manager.getPatchReporter().onPatchPackageCheckFail(patchFile, BasePatchInternal.getMetaCorruptedCode(type));
@@ -170,6 +173,7 @@ public class BsDiffPatchInternal extends BasePatchInternal {
                     String rawApkCrc = info.rawCrc;
 
                     //check source crc instead of md5 for faster
+                    //检查源CRC而不是md5以获得更快的速度
                     String rawEntryCrc = String.valueOf(rawApkFileEntry.getCrc());
                     if (!rawEntryCrc.equals(rawApkCrc)) {
                         ShareTinkerLog.e(TAG, "apk entry %s crc is not equal, expect crc: %s, got crc: %s", patchRealPath, rawApkCrc, rawEntryCrc);
@@ -181,6 +185,7 @@ public class BsDiffPatchInternal extends BasePatchInternal {
                     try {
                         oldStream = apk.getInputStream(rawApkFileEntry);
                         newStream = patch.getInputStream(patchFileEntry);
+                        //so合并生成新的so文件
                         BSPatch.patchFast(oldStream, newStream, extractedFile);
                     } finally {
                         IOHelper.closeQuietly(oldStream);
@@ -188,7 +193,7 @@ public class BsDiffPatchInternal extends BasePatchInternal {
                     }
 
                     //go go go bsdiff get the
-                    if (!SharePatchFileUtil.verifyFileMd5(extractedFile, fileMd5)) {
+                    if (!SharePatchFileUtil.verifyFileMd5(extractedFile, fileMd5)) {//校验新生产的so的MD5
                         ShareTinkerLog.w(TAG, "Failed to recover diff file " + extractedFile.getPath());
                         manager.getPatchReporter().onPatchTypeExtractFail(patchFile, extractedFile, info.name, type);
                         SharePatchFileUtil.safeDeleteFile(extractedFile);

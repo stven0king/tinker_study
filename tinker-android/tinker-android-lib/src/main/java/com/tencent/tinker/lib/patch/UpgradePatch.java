@@ -46,56 +46,60 @@ public class UpgradePatch extends AbstractPatch {
         Tinker manager = Tinker.with(context);
 
         final File patchFile = new File(tempPatchPath);
-
+        //校验tinkerid
         if (!manager.isTinkerEnabled() || !ShareTinkerInternals.isTinkerEnableWithSharedPreferences(context)) {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:patch is disabled, just return");
             return false;
         }
-
+        //校验path包文件
         if (!SharePatchFileUtil.isLegalFile(patchFile)) {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:patch file is not found, just return");
             return false;
         }
         //check the signature, we should create a new checker
+        //用于进行签名校验
         ShareSecurityCheck signatureCheck = new ShareSecurityCheck(context);
-
+        //tinker对于下发的patch包进行校验
         int returnCode = ShareTinkerInternals.checkTinkerPackage(context, manager.getTinkerFlags(), patchFile, signatureCheck);
         if (returnCode != ShareConstants.ERROR_PACKAGE_CHECK_OK) {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:onPatchPackageCheckFail");
             manager.getPatchReporter().onPatchPackageCheckFail(patchFile, returnCode);
             return false;
         }
-
+        //获取patch包的md5值
         String patchMd5 = SharePatchFileUtil.getMD5(patchFile);
         if (patchMd5 == null) {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:patch md5 is null, just return");
             return false;
         }
         //use md5 as version
+        //使用patch包的md5值作为patch的Version
         patchResult.patchVersion = patchMd5;
 
         ShareTinkerLog.i(TAG, "UpgradePatch tryPatch:patchMd5:%s", patchMd5);
 
         //check ok, we can real recover a new patch
+        //data/data/tinker.sample.android/tinker
         final String patchDirectory = manager.getPatchDirectory().getAbsolutePath();
-
+        //data/data/tinker.sample.android/tinker/info.lock
         File patchInfoLockFile = SharePatchFileUtil.getPatchInfoLockFile(patchDirectory);
+        //data/data/tinker.sample.android/tinker/patch.info
         File patchInfoFile = SharePatchFileUtil.getPatchInfoFile(patchDirectory);
-
+        //package_meta.txt中的内容
         final Map<String, String> pkgProps = signatureCheck.getPackagePropertiesIfPresent();
         if (pkgProps == null) {
             ShareTinkerLog.e(TAG, "UpgradePatch packageProperties is null, do we process a valid patch apk ?");
             return false;
         }
-
+        //默认为0
         final String isProtectedAppStr = pkgProps.get(ShareConstants.PKGMETA_KEY_IS_PROTECTED_APP);
         final boolean isProtectedApp = (isProtectedAppStr != null && !isProtectedAppStr.isEmpty() && !"0".equals(isProtectedAppStr));
-
+        //读取出老的 patch.info 文件，可能存在 可能不存在
         SharePatchInfo oldInfo = SharePatchInfo.readAndCheckPropertyWithLock(patchInfoFile, patchInfoLockFile);
 
         //it is a new patch, so we should not find a exist
         SharePatchInfo newInfo;
-
+        //创建新的patchInfo
         //already have patch
         if (oldInfo != null) {
             if (oldInfo.oldVersion == null || oldInfo.newVersion == null || oldInfo.oatDir == null) {
@@ -116,6 +120,8 @@ public class UpgradePatch extends AbstractPatch {
                 ShareTinkerLog.e(TAG, "patch already applied, md5: %s", patchMd5);
 
                 // Reset patch apply retry count to let us be able to reapply without triggering
+                //重置补丁应用重试计数，让我们能够重新应用而不触发
+                //当我们之前成功应用补丁时，应用disable。
                 // patch apply disable when we apply it successfully previously.
                 UpgradePatchRetry.getInstance(context).onPatchResetMaxCheck(patchMd5);
 
@@ -131,18 +137,20 @@ public class UpgradePatch extends AbstractPatch {
         // it is a new patch, we first delete if there is any files
         // don't delete dir for faster retry
         // SharePatchFileUtil.deleteDir(patchVersionDirectory);
+        //patchName=patch-md5前8位
         final String patchName = SharePatchFileUtil.getPatchVersionDirectory(patchMd5);
-
+        //data/data/com.xxx.xxx/tinker/patch-416739de
         final String patchVersionDirectory = patchDirectory + "/" + patchName;
 
         ShareTinkerLog.i(TAG, "UpgradePatch tryPatch:patchVersionDirectory:%s", patchVersionDirectory);
 
         //copy file
+        //data/data/com.xxx.xxx/tinker/patch-416739de/patch-416739de.apk
         File destPatchFile = new File(patchVersionDirectory + "/" + SharePatchFileUtil.getPatchVersionFile(patchMd5));
 
         try {
             // check md5 first
-            if (!patchMd5.equals(SharePatchFileUtil.getMD5(destPatchFile))) {
+            if (!patchMd5.equals(SharePatchFileUtil.getMD5(destPatchFile))) {//如果还未从下载的patch拷贝到tinker对应目录（MD5值不同），那么进行拷贝
                 SharePatchFileUtil.copyFileUsingStream(patchFile, destPatchFile);
                 ShareTinkerLog.w(TAG, "UpgradePatch copy patch file, src file: %s size: %d, dest file: %s size:%d", patchFile.getAbsolutePath(), patchFile.length(),
                     destPatchFile.getAbsolutePath(), destPatchFile.length());
@@ -158,17 +166,17 @@ public class UpgradePatch extends AbstractPatch {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:new patch recover, try patch dex failed");
             return false;
         }
-
+        //arkHot_meta.txt
         if (!ArkHotDiffPatchInternal.tryRecoverArkHotLibrary(manager, signatureCheck,
                 context, patchVersionDirectory, destPatchFile)) {
             return false;
         }
-
+        //so_meta.txt
         if (!BsDiffPatchInternal.tryRecoverLibraryFiles(manager, signatureCheck, context, patchVersionDirectory, destPatchFile)) {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:new patch recover, try patch library failed");
             return false;
         }
-
+        //res_meta.txt
         if (!ResDiffPatchInternal.tryRecoverResourceFiles(manager, signatureCheck, context, patchVersionDirectory, destPatchFile)) {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:new patch recover, try patch resource failed");
             return false;
@@ -179,7 +187,7 @@ public class UpgradePatch extends AbstractPatch {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:new patch recover, check dex opt file failed");
             return false;
         }
-
+        //重新patch.info文件
         if (!SharePatchInfo.rewritePatchInfoFileWithLock(patchInfoFile, newInfo, patchInfoLockFile)) {
             ShareTinkerLog.e(TAG, "UpgradePatch tryPatch:new patch recover, rewrite patch info failed");
             manager.getPatchReporter().onPatchInfoCorrupted(patchFile, newInfo.oldVersion, newInfo.newVersion);
@@ -187,7 +195,9 @@ public class UpgradePatch extends AbstractPatch {
         }
 
         // Reset patch apply retry count to let us be able to reapply without triggering
+        //重置补丁应用重试计数，让我们能够重新应用而不触发
         // patch apply disable when we apply it successfully previously.
+        //当我们之前成功应用补丁时，应用disable。
         UpgradePatchRetry.getInstance(context).onPatchResetMaxCheck(patchMd5);
 
         ShareTinkerLog.w(TAG, "UpgradePatch tryPatch: done, it is ok");

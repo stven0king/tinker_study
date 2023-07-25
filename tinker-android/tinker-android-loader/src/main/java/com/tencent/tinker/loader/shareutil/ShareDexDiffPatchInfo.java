@@ -70,30 +70,47 @@ public class ShareDexDiffPatchInfo {
         }
     }
 
+    /**
+     * 解析补丁包中的dex_meta.txt
+     * classes.dex,,bed6753ed9218cf252a7c39e620f7127,bed6753ed9218cf252a7c39e620f7127,3b251e269f1cb716eff2402c4ff4d944,3330949685,1459706825,jar
+     * classes10.dex,,6817c66b814be0569ea46ee8243b68ee,6817c66b814be0569ea46ee8243b68ee,a146a7e915028e9c506ac482aaab02d9,2056778443,1209957721,jar
+     * classes11.dex,,52bee351c87871dd6a3f14de23755d94,52bee351c87871dd6a3f14de23755d94,195861d8247a87470a504258dead1a91,3691397602,777490074,jar
+     * classes2.dex,,96d8643b77208944582ffa0332c63e27,96d8643b77208944582ffa0332c63e27,0ff6d09d764925c4848eefa032f16921,752632910,1158437099,jar
+     * classes3.dex,,e2dd0cc59fbf299b443d20eb0ea091f4,e2dd0cc59fbf299b443d20eb0ea091f4,fbef7009147f1f05b45dfa56a77a175f,168567500,1761117213,jar
+     * classes4.dex,,ab5f8668568612edc047ac2c63ed9112,ab5f8668568612edc047ac2c63ed9112,f5d2b4b27f32adcd9c7ef342a5ad7e52,634967837,2175466630,jar
+     * classes5.dex,,fe9b1318c9a6fec8f7cd99f3a652dd81,fe9b1318c9a6fec8f7cd99f3a652dd81,0c7bfba5d938c88db65e724d8804a436,1666121199,995631396,jar
+     * classes6.dex,,f89dafd191cbbc38f3f211c9491855ee,f89dafd191cbbc38f3f211c9491855ee,afeaf80bef16f4078713bc80910b024f,962666928,3162761158,jar
+     * classes7.dex,,3f08ae4f8c8116163d68ac092ffbe5cc,3f08ae4f8c8116163d68ac092ffbe5cc,ccc9ad54f9a6d82e8d47185ebbad5840,3067628923,3266024778,jar
+     * classes8.dex,,1781ad1e91bd462d7fedf60cf2068b06,1781ad1e91bd462d7fedf60cf2068b06,87d51684eebf59645e6bb70f9571e97b,2949640387,3769551028,jar
+     * classes9.dex,,84c26b64dc065b54805cd0f6cf8260a9,84c26b64dc065b54805cd0f6cf8260a9,67a0a1bb95a930e0afbf191816bf0641,1834285134,1125935886,jar
+     * test.dex,,56900442eb5b7e1de45449d0685e6e00,56900442eb5b7e1de45449d0685e6e00,0,0,0,jar
+     * @param meta dex_meta.txt中的内容
+     * @param dexList dex信息
+     */
     public static void parseDexDiffPatchInfo(String meta, ArrayList<ShareDexDiffPatchInfo> dexList) {
         if (meta == null || meta.length() == 0) {
             return;
         }
-        String[] lines = meta.split("\n");
+        String[] lines = meta.split("\n");//按行拆分
         for (final String line : lines) {
             if (line == null || line.length() <= 0) {
                 continue;
             }
-            final String[] kv = line.split(",", 8);
+            final String[] kv = line.split(",", 8);//按照逗号分隔，最多8个
             if (kv == null || kv.length < 8) {
                 continue;
             }
 
             // key
-            final String name = kv[0].trim();
-            final String path = kv[1].trim();
-            final String destMd5InDvm = kv[2].trim();
-            final String destMd5InArt = kv[3].trim();
-            final String dexDiffMd5 = kv[4].trim();
-            final String oldDexCrc = kv[5].trim();
-            final String newDexCrc = kv[6].trim();
+            final String name = kv[0].trim();//补丁dex名字
+            final String path = kv[1].trim();//补丁dex路径，一般为空
+            final String destMd5InDvm = kv[2].trim();//合成新dex在dvm中的md5值
+            final String destMd5InArt = kv[3].trim();//合成新的dex在art中的md5值，一般和destMd5InDvm的值相同
+            final String dexDiffMd5 = kv[4].trim();//补丁包dex文件的md5值
+            final String oldDexCrc = kv[5].trim();//基准包中对应dex的crc值（crc为指ZIP条目的CRC32校验和）
+            final String newDexCrc = kv[6].trim();//合成新 dex 的 crc 值
 
-            final String dexMode = kv[7].trim();
+            final String dexMode = kv[7].trim();//dex 类型，为 jar 类型
 
             ShareDexDiffPatchInfo dexInfo = new ShareDexDiffPatchInfo(name, path, destMd5InDvm, destMd5InArt,
                 dexDiffMd5, oldDexCrc, newDexCrc, dexMode);

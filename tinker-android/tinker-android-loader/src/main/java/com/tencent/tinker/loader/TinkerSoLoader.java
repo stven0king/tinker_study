@@ -63,7 +63,7 @@ public class TinkerSoLoader {
             return true;
         }
 
-        //tinker//patch-641e634c/lib
+        //tinker/patch-641e634c/lib
         String libraryPath = directory + "/" + SO_PATH + "/";
 
         HashMap<String, String> libs = new HashMap<>();
